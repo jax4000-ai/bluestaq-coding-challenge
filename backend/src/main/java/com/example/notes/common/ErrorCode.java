@@ -11,7 +11,7 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode {
     NOTE_NOT_FOUND(HttpStatus.NOT_FOUND, "Note not found"),
     NOTE_CONFLICT(HttpStatus.CONFLICT, "Edit conflict"),
-    NOTE_VALIDATION_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "Note rejected"),
+    NOTE_VALIDATION_FAILED(HttpStatus.UNPROCESSABLE_CONTENT, "Note rejected"),
     IDENTITY_INVALID(HttpStatus.UNAUTHORIZED, "Identity required"),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "Access denied"),
     MALFORMED_REQUEST(HttpStatus.BAD_REQUEST, "Malformed request"),

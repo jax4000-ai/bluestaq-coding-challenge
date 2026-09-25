@@ -7,10 +7,13 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
+
+import com.example.notes.observability.RequestMetricsRecorder;
 
 import reactor.core.publisher.Mono;
 
@@ -18,6 +21,12 @@ import reactor.core.publisher.Mono;
 public class ResponseSecurityFilter implements WebFilter {
     private static final Logger log = LoggerFactory.getLogger(ResponseSecurityFilter.class);
     private static final String REQUEST_ID = "X-Request-Id";
+
+    private final RequestMetricsRecorder metricsRecorder;
+
+    public ResponseSecurityFilter(RequestMetricsRecorder metricsRecorder) {
+        this.metricsRecorder = metricsRecorder;
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
@@ -38,17 +47,27 @@ public class ResponseSecurityFilter implements WebFilter {
                 "default-src 'self'; script-src 'self'; style-src 'self'; "
                         + "connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'");
 
+        String path = exchange.getRequest().getPath().value();
+        boolean isInfrastructureProbe = path.startsWith("/actuator");
+
         Instant start = Instant.now();
         // doFinally runs for completion, error, and cancellation without blocking the
-        // reactive pipeline, so this doubles as a lightweight structured access log.
+        // reactive pipeline, so this doubles as a lightweight structured access log and feeds
+        // the dashboard's traffic/status counters.
         return chain.filter(exchange)
-                .doFinally(signalType -> log.info(
-                        "requestId={} method={} path={} status={} durationMs={} signal={}",
-                        requestId,
-                        exchange.getRequest().getMethod(),
-                        exchange.getRequest().getPath(),
-                        exchange.getResponse().getStatusCode(),
-                        Duration.between(start, Instant.now()).toMillis(),
-                        signalType));
+                .doFinally(signalType -> {
+                    HttpStatusCode statusCode = exchange.getResponse().getStatusCode();
+                    log.info(
+                            "requestId={} method={} path={} status={} durationMs={} signal={}",
+                            requestId,
+                            exchange.getRequest().getMethod(),
+                            path,
+                            statusCode,
+                            Duration.between(start, Instant.now()).toMillis(),
+                            signalType);
+                    if (!isInfrastructureProbe && statusCode != null) {
+                        metricsRecorder.recordRequest(statusCode.value());
+                    }
+                });
     }
 }

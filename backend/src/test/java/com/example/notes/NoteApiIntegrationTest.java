@@ -198,6 +198,33 @@ class NoteApiIntegrationTest {
                 .expectStatus().isForbidden();
     }
 
+    @Test
+    void exposesAggregateTrafficAndErrorCodeMetrics() {
+        create("alpha", "ada", "Traffic seed note", "Generates a successful request");
+
+        client.get()
+                .uri("/api/teams/alpha/notes/999999")
+                .exchange()
+                .expectStatus().isNotFound();
+
+        client.get()
+                .uri("/api/observability/metrics")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.totalRequests").value(
+                        (Number total) -> assertThat(total.longValue()).isGreaterThan(0))
+                .jsonPath("$.twoXx").value(
+                        (Number twoXx) -> assertThat(twoXx.longValue()).isGreaterThan(0))
+                .jsonPath("$.fourXx").value(
+                        (Number fourXx) -> assertThat(fourXx.longValue()).isGreaterThan(0))
+                .jsonPath("$.trafficByMinute.length()").isEqualTo(60)
+                .jsonPath("$.errorCodes[?(@.code == 'NOTE_NOT_FOUND')].count").value(
+                        (java.util.List<Number> counts) -> assertThat(counts)
+                                .isNotEmpty()
+                                .allSatisfy(count -> assertThat(count.longValue()).isGreaterThan(0)));
+    }
+
     private NoteResponse create(String team, String author, String title, String content) {
         return create(team, author, title, content, DataClassification.INTERNAL);
     }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import Dashboard from './Dashboard'
 import './App.css'
 
 type NoteStatus = 'ACTIVE' | 'ARCHIVED'
@@ -45,6 +46,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 function App() {
+  const [view, setView] = useState<'notes' | 'dashboard'>('notes')
   const [teamId, setTeamId] = useState('orbital-ops')
   const [authorId, setAuthorId] = useState('operator.ada')
   const [clearance, setClearance] = useState<DataClassification>('CUI')
@@ -187,6 +189,26 @@ function App() {
           </div>
         </div>
         <div className="access-controls">
+          <div className="view-tabs" role="tablist" aria-label="View">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'notes'}
+              className={view === 'notes' ? 'active' : ''}
+              onClick={() => setView('notes')}
+            >
+              Notes
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'dashboard'}
+              className={view === 'dashboard' ? 'active' : ''}
+              onClick={() => setView('dashboard')}
+            >
+              Dashboard
+            </button>
+          </div>
           <label className="team-switcher">
             Mission team
             <input
@@ -219,21 +241,25 @@ function App() {
         </div>
       </header>
 
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Authorized use only · {clearance} workspace</p>
-          <h1>Mission context.<br />Need-to-know access.</h1>
-          <p className="hero-copy">
-            Classification-aware collaboration with auditable changes and live team updates.
-          </p>
-        </div>
-        <div className="hero-stat">
-          <strong>{notes.length}</strong>
-          <span>{status.toLowerCase()} notes</span>
-        </div>
-      </section>
+      {view === 'dashboard' ? (
+        <Dashboard apiBase={API_BASE} />
+      ) : (
+        <>
+          <section className="hero">
+            <div>
+              <p className="eyebrow">Authorized use only · {clearance} workspace</p>
+              <h1>Mission context.<br />Need-to-know access.</h1>
+              <p className="hero-copy">
+                Classification-aware collaboration with auditable changes and live team updates.
+              </p>
+            </div>
+            <div className="hero-stat">
+              <strong>{notes.length}</strong>
+              <span>{status.toLowerCase()} notes</span>
+            </div>
+          </section>
 
-      <section className="workspace">
+          <section className="workspace">
         <aside className="note-list-panel">
           <div className="toolbar">
             <input
@@ -401,7 +427,9 @@ function App() {
             Access is filtered server-side by team and clearance. Mutations are audited; stale edits are rejected.
           </div>
         </section>
-      </section>
+          </section>
+        </>
+      )}
     </main>
   )
 }

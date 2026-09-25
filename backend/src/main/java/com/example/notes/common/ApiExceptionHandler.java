@@ -13,16 +13,25 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.ServerWebInputException;
 
+import com.example.notes.observability.RequestMetricsRecorder;
+
 /**
  * Single place where every exception becomes an RFC 9457 Problem Details response. Each
  * response carries a stable {@code errorCode} (see {@link ErrorCode}) and the correlating
- * {@code X-Request-Id}, and every rejection is logged so operators can trace a client-visible
- * error back to the request that caused it without exposing internals to the caller.
+ * {@code X-Request-Id}, and every rejection is logged and counted (see {@link RequestMetricsRecorder})
+ * so operators can trace a client-visible error back to the request that caused it without
+ * exposing internals to the caller.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
     private static final String REQUEST_ID_HEADER = "X-Request-Id";
+
+    private final RequestMetricsRecorder metricsRecorder;
+
+    public ApiExceptionHandler(RequestMetricsRecorder metricsRecorder) {
+        this.metricsRecorder = metricsRecorder;
+    }
 
     @ExceptionHandler(ApiException.class)
     ProblemDetail apiException(ApiException exception, ServerWebExchange exchange) {
@@ -109,6 +118,7 @@ public class ApiExceptionHandler {
         problem.setType(URI.create("https://team-notes.example/problems/" + status.value()));
         problem.setProperty("errorCode", code.name());
         problem.setProperty("requestId", requestId(exchange));
+        metricsRecorder.recordErrorCode(code.name());
         return problem;
     }
 

@@ -34,8 +34,23 @@ Render's free hosting may put the application to sleep when it is unused. If the
 4. Change the clearance to `PUBLIC`. Only the public note remains.
 5. Return to `CUI`, create a synthetic note, edit it, archive it, and restore it.
 6. Open the application in a second browser window to see changes arrive through the live event stream.
+7. Click the **Dashboard** tab to see live traffic, 2xx/4xx/5xx counts, and an error-code breakdown update in real time.
 
 The demo requires no login. Its in-memory database can reset whenever the free service restarts or is redeployed. **Do not enter real government, CUI, customer, personal, or confidential information.**
+
+## Operations dashboard
+
+**In plain English:** the **Dashboard** tab is a small built-in "ops screen" — the same kind of view a site-reliability engineer would want on-call. It shows how much traffic the app is getting and how much of it is failing, updating automatically every 5 seconds, without needing to install or configure any separate monitoring tool.
+
+It shows, for this running instance:
+
+- **Total requests, 2xx, 4xx, and 5xx counts** as headline cards
+- **Traffic over the last 60 minutes** as a per-minute bar chart
+- **Error-code breakdown** (see the table in [Errors and logging](#errors-and-logging)) ranked by frequency
+
+Backed by `GET /api/observability/metrics`, which is intentionally public and unauthenticated because it only returns aggregate counts — never note titles, content, team names, or identities. Health-check pings to `/actuator/health` are excluded so the traffic chart reflects real application usage. Counters live in server memory only (no external metrics backend, no new dependency); they reset on restart or redeploy, exactly like the demo's in-memory H2 database.
+
+What I'd add first for a real production dashboard: export these as [Micrometer](https://micrometer.io/)/Prometheus metrics instead of a bespoke endpoint, ship them to a managed backend (e.g. CloudWatch or Grafana) so history survives restarts and spans multiple instances, and add alerting thresholds on the 5xx rate.
 
 ## What this project demonstrates
 
@@ -45,6 +60,7 @@ The demo requires no login. Its in-memory database can reset whenever the free s
 - **Safe collaboration:** version checks prevent one user from silently overwriting another.
 - **Accountability:** changes produce audit records that show who did what and when.
 - **Live updates:** the browser receives changes without repeatedly refreshing the page.
+- **Observability:** a live dashboard surfaces traffic, error rates, and error codes without extra tooling.
 - **Production awareness:** the README distinguishes working demo controls from controls still required for a real deployment.
 - **Automated quality gates:** tests, linting, frontend builds, and container builds run in GitHub Actions.
 
@@ -178,6 +194,7 @@ All routes are scoped to a team:
 | `DELETE` | `/api/teams/{teamId}/notes/{id}` | Permanently delete |
 | `GET` | `/api/teams/{teamId}/notes/events` | Clearance-filtered SSE stream |
 | `GET` | `/api/teams/{teamId}/audit` | Mutation audit trail; demo requires CUI clearance |
+| `GET` | `/api/observability/metrics` | Aggregate traffic/error dashboard counters; public, no identity headers |
 
 List parameters:
 
