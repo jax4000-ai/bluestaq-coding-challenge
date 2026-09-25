@@ -2,7 +2,7 @@
 
 A secure-by-design note collaboration service for mission teams.
 
-This coding-challenge submission is tailored to the public themes in Bluestaq's work: defense-grade data infrastructure, discoverability, data mobility, interoperability, and operation in high-consequence environments. It is an independent demo and **does not claim Bluestaq affiliation, FedRAMP authorization, CMMC certification, DoD Impact Level approval, or authorization to process classified information**.
+This coding-challenge submission is themed around defense-grade data infrastructure: discoverability, data mobility, interoperability, and operation in high-consequence environments. It is an independent demo and **does not claim any government affiliation, FedRAMP authorization, CMMC certification, DoD Impact Level approval, or authorization to process classified information**.
 
 ## In plain English
 
