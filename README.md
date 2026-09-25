@@ -74,6 +74,8 @@ npm run build
 
 The integration suite exercises the real HTTP API and database. It covers CRUD, team isolation, validation, duplicate titles, archive/delete, stale-edit conflicts, audit creation, and classification enforcement.
 
+GitHub Actions runs both the backend integration suite and frontend lint/build on pushes to `main` and on pull requests.
+
 ## Demo identity boundary
 
 REST calls require:
@@ -260,7 +262,7 @@ Security controls support compliance, but architecture diagrams and AWS services
 - Add OpenTelemetry with strict content redaction
 - Add immutable audit export and integrity verification
 - Add frontend component tests, Playwright journeys, DAST, SAST, dependency and container scanning
-- Add Terraform plus CI/CD promotion across isolated environments
+- Add Terraform plus signed artifact promotion across isolated environments
 - Conduct a misuse-case threat model and document control inheritance/shared responsibility
 
 ## Scope assumptions
