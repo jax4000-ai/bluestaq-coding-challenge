@@ -4,6 +4,29 @@
   padding: 28px 0 64px;
 }
 
+.demo-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-bottom: 14px;
+  border: 1px solid #ddc69d;
+  border-radius: 9px;
+  background: #fff7e7;
+  padding: 8px 12px;
+  color: #765627;
+  font-size: 11px;
+}
+
+.demo-notice strong {
+  border-radius: 4px;
+  background: #8a642d;
+  padding: 2px 5px;
+  color: #fff;
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -526,6 +549,11 @@ form textarea {
 }
 
 @media (max-width: 520px) {
+  .demo-notice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .topbar,
   .hero,
   .filters {

@@ -174,6 +174,10 @@ function App() {
 
   return (
     <main className="app-shell">
+      <div className="demo-notice" role="note">
+        <strong>INTERVIEW DEMO</strong>
+        Synthetic data only. Do not enter real government, CUI, customer, or personal information.
+      </div>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">N</span>

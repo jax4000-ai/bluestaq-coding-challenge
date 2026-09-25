@@ -60,6 +60,18 @@ docker compose up --build
 
 Open http://localhost:3000. Compose uses PostgreSQL and a persistent named volume.
 
+### Public interview demo
+
+The root `Dockerfile` builds React and Spring Boot into one same-origin container. `render.yaml` deploys it as a public Render web service with the `demo` profile, which seeds three synthetic notes so reviewers can immediately switch clearance levels and observe server-side filtering.
+
+The public demo:
+
+- Requires no reviewer login
+- Uses HTTPS supplied by the hosting platform
+- Is labeled synthetic-data-only
+- Uses ephemeral H2 storage; changes may reset after restart or redeployment
+- Must never receive real government, CUI, customer, or personal data
+
 ## Test and build
 
 ```bash

@@ -28,7 +28,10 @@ public class ResponseSecurityFilter implements WebFilter {
         headers.set("X-Content-Type-Options", "nosniff");
         headers.set("X-Frame-Options", "DENY");
         headers.set("Referrer-Policy", "no-referrer");
-        headers.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+        headers.set(
+                "Content-Security-Policy",
+                "default-src 'self'; script-src 'self'; style-src 'self'; "
+                        + "connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'");
         return chain.filter(exchange);
     }
 }
