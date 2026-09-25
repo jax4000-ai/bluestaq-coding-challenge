@@ -3,6 +3,8 @@ package com.example.notes.note.api;
 import java.net.URI;
 import java.time.Duration;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
@@ -37,6 +39,8 @@ import reactor.core.publisher.Mono;
 @RestController
 @RequestMapping("/api/teams/{teamId}/notes")
 public class NoteController {
+    private static final Logger log = LoggerFactory.getLogger(NoteController.class);
+
     private final NoteService service;
     private final RequestActorResolver actorResolver;
 
@@ -71,6 +75,7 @@ public class NoteController {
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-User-Clearance") DataClassification clearance,
             @Valid @RequestBody CreateNoteRequest request) {
+        log.debug("POST /notes teamId={} actorId={}", teamId, userId);
         return service.create(teamId, request, actor(userId, clearance))
                 .map(note -> ResponseEntity
                         .created(URI.create("/api/teams/" + teamId + "/notes/" + note.id()))
@@ -84,6 +89,7 @@ public class NoteController {
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-User-Clearance") DataClassification clearance,
             @Valid @RequestBody UpdateNoteRequest request) {
+        log.debug("PUT /notes/{} teamId={} actorId={}", id, teamId, userId);
         return service.update(teamId, id, request, actor(userId, clearance));
     }
 
@@ -94,6 +100,7 @@ public class NoteController {
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-User-Clearance") DataClassification clearance,
             @RequestParam(defaultValue = "true") boolean archived) {
+        log.debug("PATCH /notes/{}/archive archived={} teamId={} actorId={}", id, archived, teamId, userId);
         return service.setArchived(teamId, id, archived, actor(userId, clearance));
     }
 
@@ -103,6 +110,7 @@ public class NoteController {
             @PathVariable Long id,
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-User-Clearance") DataClassification clearance) {
+        log.debug("DELETE /notes/{} teamId={} actorId={}", id, teamId, userId);
         return service.delete(teamId, id, actor(userId, clearance))
                 .thenReturn(ResponseEntity.noContent().build());
     }

@@ -4,11 +4,72 @@ A secure-by-design note collaboration service for mission teams.
 
 This coding-challenge submission is tailored to the public themes in Bluestaq's work: defense-grade data infrastructure, discoverability, data mobility, interoperability, and operation in high-consequence environments. It is an independent demo and **does not claim Bluestaq affiliation, FedRAMP authorization, CMMC certification, DoD Impact Level approval, or authorization to process classified information**.
 
+## In plain English
+
+Mission Notes is a shared notebook for teams that work with information at different sensitivity levels.
+
+Imagine that three coworkers use the same application:
+
+- A user with `PUBLIC` clearance can see only public notes.
+- A user with `INTERNAL` clearance can see public and internal notes.
+- A user with `CUI` clearance can see all three levels, including controlled notes.
+
+The backend makes these decisions. Hiding a note in the browser is not enough because a user could call the API directly. Every read, search, edit, deletion, and live update is therefore checked by the server before data is returned.
+
+The application also protects people from accidentally overwriting each other's work. If two users open the same note and both make changes, the second outdated save is rejected instead of silently erasing the first person's update.
+
+This project demonstrates engineering ideas appropriate for a high-consequence environment, but it uses only synthetic data and is not certified to store real government or classified information.
+
+## Live demo
+
+**Application:** https://mission-notes-demo.onrender.com
+
+Render's free hosting may put the application to sleep when it is unused. If the first visit is slow, allow up to a minute for it to start.
+
+### Two-minute interviewer walkthrough
+
+1. Open the live application. It starts as operator `operator.ada` with `CUI` clearance.
+2. Notice the seeded Public, Internal, and CUI notes.
+3. Change the clearance to `INTERNAL`. The CUI note disappears because the server no longer returns it.
+4. Change the clearance to `PUBLIC`. Only the public note remains.
+5. Return to `CUI`, create a synthetic note, edit it, archive it, and restore it.
+6. Open the application in a second browser window to see changes arrive through the live event stream.
+
+The demo requires no login. Its in-memory database can reset whenever the free service restarts or is redeployed. **Do not enter real government, CUI, customer, personal, or confidential information.**
+
+## What this project demonstrates
+
+- **Security at the backend:** access rules are enforced by the API, not trusted to the browser.
+- **Team separation:** every database operation includes the team identifier.
+- **Need-to-know filtering:** users receive only notes at or below their clearance.
+- **Safe collaboration:** version checks prevent one user from silently overwriting another.
+- **Accountability:** changes produce audit records that show who did what and when.
+- **Live updates:** the browser receives changes without repeatedly refreshing the page.
+- **Production awareness:** the README distinguishes working demo controls from controls still required for a real deployment.
+- **Automated quality gates:** tests, linting, frontend builds, and container builds run in GitHub Actions.
+
 - **Backend:** Java 21, Spring Boot 4, WebFlux, Spring Data R2DBC
 - **Frontend:** React 19, TypeScript, Vite
 - **Local database:** in-memory H2 for zero-setup review
 - **Production target:** PostgreSQL on AWS
 - **Realtime updates:** Server-Sent Events (SSE)
+
+## Technical terms translated
+
+| Term | Meaning in everyday language |
+| --- | --- |
+| WebFlux | A way for the server to handle many requests without assigning and blocking one thread for every waiting request. |
+| Reactive / non-blocking | The server can work on other requests while it waits for the database or network. |
+| R2DBC | A database connection approach that supports the same non-blocking model as WebFlux. |
+| SSE | A one-way live connection that lets the server notify the browser when notes change. |
+| Optimistic locking | A version check that stops an old edit from overwriting a newer edit. |
+| CUI | Controlled Unclassified Information. In this demo it is only a sample sensitivity label. |
+| Audit trail | A history showing which user performed each important change and when. |
+| Problem Details | A standard, predictable JSON format for API errors. |
+| JWT | A digitally signed identity token that a production system can verify. |
+| RBAC / ABAC | Rules that decide access based on a person's role or attributes. |
+| Row-Level Security | Database rules that prevent users from reading rows they are not allowed to see. |
+| Docker | Packaging that runs the application with the same software setup in different environments. |
 
 ## Mission scenario
 
@@ -63,6 +124,8 @@ Open http://localhost:3000. Compose uses PostgreSQL and a persistent named volum
 ### Public interview demo
 
 The root `Dockerfile` builds React and Spring Boot into one same-origin container. `render.yaml` deploys it as a public Render web service with the `demo` profile, which seeds three synthetic notes so reviewers can immediately switch clearance levels and observe server-side filtering.
+
+Live URL: https://mission-notes-demo.onrender.com
 
 The public demo:
 
@@ -149,6 +212,47 @@ Updates include the last version seen by the client:
 A stale version returns `409 Conflict`; the service never retries a destructive overwrite automatically.
 
 An inaccessible note returns `404`, not `403`, to avoid confirming that the record exists.
+
+## Errors and logging
+
+**In plain English:** every error the API returns includes a short, stable code (like `NOTE_CONFLICT`) in addition to a human-readable message, and the server writes a log line for every rejected request. This lets a client program react to the *code* (which never changes wording) while a person debugging the system can search logs by request ID and immediately see why a call failed.
+
+Every error response is an [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) Problem Details JSON body with two extension fields:
+
+```json
+{
+  "type": "https://team-notes.example/problems/409",
+  "title": "Edit conflict",
+  "status": 409,
+  "detail": "The note was changed by someone else",
+  "errorCode": "NOTE_CONFLICT",
+  "requestId": "f751d1f3-0ebc-4dc9-9f12-32a125818bf7"
+}
+```
+
+| HTTP status | `errorCode` | When it happens |
+| --- | --- | --- |
+| 400 | `MALFORMED_REQUEST` | The request body could not be parsed (invalid JSON, wrong type) |
+| 400 | `REQUEST_VALIDATION_FAILED` | A field or query parameter failed validation (blank title, bad enum value) |
+| 401 | `IDENTITY_INVALID` | `X-User-Id` or `X-User-Clearance` is missing or malformed |
+| 403 | `ACCESS_DENIED` | The caller's clearance does not permit the requested classification |
+| 404 | `NOTE_NOT_FOUND` | The note does not exist, or exists but is above the caller's clearance |
+| 409 | `NOTE_CONFLICT` | An update or delete was based on a stale version (optimistic locking) |
+| 422 | `NOTE_VALIDATION_FAILED` | The note itself is invalid, e.g. duplicate title within the team |
+| 500 | `INTERNAL_ERROR` | An unexpected server-side failure; the client only sees a generic message |
+
+`requestId` matches the `X-Request-Id` response header, so a reviewer can correlate a specific failed API call with the corresponding backend log line.
+
+### What gets logged
+
+- **Access log** — one line per request/response with method, path, status, duration, and request ID (`ResponseSecurityFilter`).
+- **Business events** — note created/updated/archived/restored/deleted, each with note ID, team, and actor ID, plus event-stream subscribe/unsubscribe (`NoteService`).
+- **Rejections** — every error path logs at `WARN` (client-caused, e.g. conflict, not found, access denied, validation) or `ERROR` (unexpected server-side failure) with the request ID and error code, so `4xx`/`5xx` responses are never silent (`ApiExceptionHandler`).
+- **Audit trail** — every mutation additionally produces a durable `AuditRecord` row (actor, action, note, team, classification, timestamp) independent of the text log stream (`AuditService`, `AuditController`).
+
+Logs never include raw request bodies, passwords, or unvalidated header values; an identity header that fails validation is logged as *rejected*, not echoed back, to avoid log-injection from attacker-controlled input.
+
+Default log level is `INFO` (`logging.level.com.example.notes=INFO` in `application.properties`). Set it to `DEBUG` locally to also see per-request list/search parameters and controller entry points.
 
 ## Architecture
 

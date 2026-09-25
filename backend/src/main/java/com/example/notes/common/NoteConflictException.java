@@ -1,7 +1,7 @@
 package com.example.notes.common;
 
-public class NoteConflictException extends RuntimeException {
+public class NoteConflictException extends ApiException {
     public NoteConflictException(String message) {
-        super(message);
+        super(ErrorCode.NOTE_CONFLICT, message);
     }
 }

@@ -1,7 +1,7 @@
 package com.example.notes.common;
 
-public class InvalidNoteException extends RuntimeException {
+public class InvalidNoteException extends ApiException {
     public InvalidNoteException(String message) {
-        super(message);
+        super(ErrorCode.NOTE_VALIDATION_FAILED, message);
     }
 }

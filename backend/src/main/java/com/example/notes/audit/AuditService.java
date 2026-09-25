@@ -2,6 +2,8 @@ package com.example.notes.audit;
 
 import java.time.Clock;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.example.notes.note.Note;
@@ -12,6 +14,8 @@ import reactor.core.publisher.Mono;
 
 @Service
 public class AuditService {
+    private static final Logger log = LoggerFactory.getLogger(AuditService.class);
+
     private final AuditRecordRepository repository;
     private final Clock clock;
 
@@ -29,7 +33,11 @@ public class AuditService {
                 note.id(),
                 note.classification(),
                 clock.instant());
-        return repository.save(record).then();
+        return repository.save(record)
+                .doOnNext(saved -> log.debug(
+                        "audit recorded action={} noteId={} teamId={} actorId={} classification={}",
+                        action, note.id(), note.teamId(), actor.userId(), note.classification()))
+                .then();
     }
 
     public Flux<AuditRecord> list(String teamId) {

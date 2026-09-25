@@ -3,6 +3,8 @@ package com.example.notes.note.service;
 import java.time.Clock;
 import java.util.Locale;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,8 @@ import reactor.core.publisher.Sinks;
 
 @Service
 public class NoteService {
+    private static final Logger log = LoggerFactory.getLogger(NoteService.class);
+
     private final NoteRepository repository;
     private final NoteFactory factory;
     private final NoteRuleChain ruleChain;
@@ -59,6 +63,9 @@ public class NoteService {
             NoteSort sort,
             RequestActor actor) {
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        log.debug(
+                "list notes teamId={} actorId={} clearance={} status={} sort={}",
+                teamId, actor.userId(), actor.clearance(), status, sort);
         return repository.findAllByTeamId(teamId)
                 .filter(note -> actor.mayAccess(note.classification()))
                 .filter(note -> status == null || note.status() == status)
@@ -87,7 +94,10 @@ public class NoteService {
                 .then(Mono.fromSupplier(() -> factory.create(draft)))
                 .flatMap(repository::save)
                 .flatMap(saved -> auditService.record("NOTE_CREATED", actor, saved).thenReturn(saved))
-                .map(saved -> publish("created", saved));
+                .map(saved -> publish("created", saved))
+                .doOnNext(saved -> log.info(
+                        "note created id={} teamId={} actorId={} classification={}",
+                        saved.id(), teamId, actor.userId(), request.classification()));
     }
 
     @Transactional
@@ -99,6 +109,10 @@ public class NoteService {
         return findAccessible(teamId, id, actor)
                 .flatMap(existing -> {
                     if (!existing.version().equals(request.version())) {
+                        log.warn(
+                                "optimistic lock conflict noteId={} teamId={} actorId={} "
+                                        + "suppliedVersion={} currentVersion={}",
+                                id, teamId, actor.userId(), request.version(), existing.version());
                         return Mono.error(new NoteConflictException("The note was changed by someone else"));
                     }
                     NoteDraft draft = new NoteDraft(
@@ -118,7 +132,10 @@ public class NoteService {
                         OptimisticLockingFailureException.class,
                         error -> new NoteConflictException("The note was changed by someone else"))
                 .flatMap(saved -> auditService.record("NOTE_UPDATED", actor, saved).thenReturn(saved))
-                .map(saved -> publish("updated", saved));
+                .map(saved -> publish("updated", saved))
+                .doOnNext(saved -> log.info(
+                        "note updated id={} teamId={} actorId={} newVersion={}",
+                        saved.id(), teamId, actor.userId(), saved.version()));
     }
 
     @Transactional
@@ -133,7 +150,10 @@ public class NoteService {
                 .flatMap(saved -> auditService
                         .record(archived ? "NOTE_ARCHIVED" : "NOTE_RESTORED", actor, saved)
                         .thenReturn(saved))
-                .map(saved -> publish(archived ? "archived" : "restored", saved));
+                .map(saved -> publish(archived ? "archived" : "restored", saved))
+                .doOnNext(saved -> log.info(
+                        "note {} id={} teamId={} actorId={}",
+                        archived ? "archived" : "restored", saved.id(), teamId, actor.userId()));
     }
 
     @Transactional
@@ -141,14 +161,21 @@ public class NoteService {
         return findAccessible(teamId, id, actor)
                 .flatMap(note -> auditService.record("NOTE_DELETED", actor, note)
                         .then(repository.delete(note))
-                        .doOnSuccess(ignored -> events.tryEmitNext(new NoteEvent(
-                                "deleted", teamId, note.classification(), null))));
+                        .doOnSuccess(ignored -> {
+                            events.tryEmitNext(new NoteEvent("deleted", teamId, note.classification(), null));
+                            log.info("note deleted id={} teamId={} actorId={}", id, teamId, actor.userId());
+                        }));
     }
 
     public Flux<NoteEvent> events(String teamId, RequestActor actor) {
         return events.asFlux()
                 .filter(event -> event.teamId().equals(teamId))
-                .filter(event -> actor.mayAccess(event.classification()));
+                .filter(event -> actor.mayAccess(event.classification()))
+                .doOnSubscribe(subscription -> log.info(
+                        "event stream subscribed teamId={} actorId={} clearance={}",
+                        teamId, actor.userId(), actor.clearance()))
+                .doOnCancel(() -> log.info(
+                        "event stream closed teamId={} actorId={}", teamId, actor.userId()));
     }
 
     private Mono<Note> find(String teamId, Long id) {
@@ -164,6 +191,9 @@ public class NoteService {
 
     private void requireClearance(RequestActor actor, com.example.notes.security.DataClassification classification) {
         if (!actor.mayAccess(classification)) {
+            log.warn(
+                    "access denied actorId={} clearance={} requestedClassification={}",
+                    actor.userId(), actor.clearance(), classification);
             throw new DataAccessDeniedException("Clearance does not permit this data classification");
         }
     }
