@@ -27,6 +27,24 @@ type Problem = {
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 
+const CLEARANCE_RANK: Record<DataClassification, number> = { PUBLIC: 0, INTERNAL: 1, CUI: 2 }
+
+function isClassificationAllowed(clearance: DataClassification, classification: DataClassification) {
+  return CLEARANCE_RANK[clearance] >= CLEARANCE_RANK[classification]
+}
+
+/**
+ * DEMO-ONLY passphrases that gate the clearance selector in the browser. This is not a real
+ * security boundary: the passphrases are intentionally visible in this file and in the UI, and
+ * anyone calling the API directly can still set any `X-User-Clearance` header (see the README's
+ * "Demo identity boundary" section). Its only purpose is to stop a casual click from instantly
+ * revealing higher-classification notes.
+ */
+const CLEARANCE_PASSPHRASES: Partial<Record<DataClassification, string>> = {
+  INTERNAL: 'internal-demo',
+  CUI: 'cui-demo',
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...options,
@@ -49,8 +67,11 @@ function App() {
   const [view, setView] = useState<'notes' | 'dashboard'>('notes')
   const [teamId, setTeamId] = useState('orbital-ops')
   const [authorId, setAuthorId] = useState('operator.ada')
-  const [clearance, setClearance] = useState<DataClassification>('CUI')
-  const [classification, setClassification] = useState<DataClassification>('INTERNAL')
+  const [clearance, setClearance] = useState<DataClassification>('PUBLIC')
+  const [classification, setClassification] = useState<DataClassification>('PUBLIC')
+  const [clearanceNotice, setClearanceNotice] = useState('')
+  const [pendingClearance, setPendingClearance] = useState<DataClassification | null>(null)
+  const [passphraseInput, setPassphraseInput] = useState('')
   const [notes, setNotes] = useState<Note[]>([])
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<NoteStatus>('ACTIVE')
@@ -109,6 +130,49 @@ function App() {
     setTitle('')
     setContent('')
     setError('')
+  }
+
+  function applyClearance(nextClearance: DataClassification) {
+    setClearance(nextClearance)
+    if (!isClassificationAllowed(nextClearance, classification)) {
+      setClassification(nextClearance)
+    }
+    startNew()
+  }
+
+  function requestClearanceChange(nextClearance: DataClassification) {
+    const requiredPassphrase = CLEARANCE_PASSPHRASES[nextClearance]
+
+    if (!requiredPassphrase) {
+      setPendingClearance(null)
+      setClearanceNotice('')
+      applyClearance(nextClearance)
+      return
+    }
+
+    setPendingClearance(nextClearance)
+    setPassphraseInput('')
+    setClearanceNotice('')
+  }
+
+  function confirmPassphrase(event: FormEvent) {
+    event.preventDefault()
+    if (!pendingClearance) return
+
+    if (passphraseInput === CLEARANCE_PASSPHRASES[pendingClearance]) {
+      applyClearance(pendingClearance)
+      setPendingClearance(null)
+      setPassphraseInput('')
+      setClearanceNotice('')
+    } else {
+      setClearanceNotice(`Incorrect demo passphrase for ${pendingClearance}. Try again or cancel.`)
+    }
+  }
+
+  function cancelPassphrase() {
+    setPendingClearance(null)
+    setPassphraseInput('')
+    setClearanceNotice('')
   }
 
   function startEdit(note: Note) {
@@ -180,6 +244,12 @@ function App() {
         <strong>INTERVIEW DEMO</strong>
         Synthetic data only. Do not enter real government, CUI, customer, or personal information.
       </div>
+      <div className="demo-notice demo-notice-security" role="note">
+        <strong>SIMULATED ACCESS CONTROL</strong>
+        Clearance below is a self-selected demo control gated by a visible passphrase, not a real
+        login. Anyone calling the API directly can still set any clearance header. See the
+        README&apos;s &quot;Demo identity boundary&quot; section for the production security model.
+      </div>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">N</span>
@@ -222,24 +292,54 @@ function App() {
           </label>
           <label className="team-switcher">
             Clearance
-            <select
-              value={clearance}
-              onChange={(event) => {
-                const nextClearance = event.target.value as DataClassification
-                setClearance(nextClearance)
-                if (classification === 'CUI' && nextClearance !== 'CUI') {
-                  setClassification('INTERNAL')
-                }
-                startNew()
-              }}
-            >
+            <select value={clearance} onChange={(event) => requestClearanceChange(event.target.value as DataClassification)}>
               <option value="PUBLIC">Public</option>
-              <option value="INTERNAL">Internal</option>
-              <option value="CUI">CUI</option>
+              <option value="INTERNAL">Internal (passphrase)</option>
+              <option value="CUI">CUI (passphrase)</option>
             </select>
           </label>
         </div>
       </header>
+
+      {pendingClearance && (
+        <form
+          className="clearance-gate"
+          onSubmit={confirmPassphrase}
+          role="alertdialog"
+          aria-label={`Unlock ${pendingClearance} clearance`}
+        >
+          <div className="clearance-gate-copy">
+            <strong>Demo passphrase required for {pendingClearance}</strong>
+            <span>
+              UI convenience only, not real security &mdash; the passphrase is intentionally
+              visible below and in the README.
+            </span>
+          </div>
+          <input
+            type="password"
+            autoFocus
+            value={passphraseInput}
+            onChange={(event) => setPassphraseInput(event.target.value)}
+            placeholder="Demo passphrase"
+            aria-label="Demo passphrase"
+          />
+          <div className="clearance-gate-actions">
+            <button type="submit">Unlock</button>
+            <button type="button" className="text-button" onClick={cancelPassphrase}>
+              Cancel
+            </button>
+          </div>
+          <span className="clearance-gate-hint">
+            Hint: <code>{CLEARANCE_PASSPHRASES[pendingClearance]}</code>
+          </span>
+        </form>
+      )}
+
+      {clearanceNotice && (
+        <div className="clearance-notice" role="alert">
+          {clearanceNotice}
+        </div>
+      )}
 
       {view === 'dashboard' ? (
         <Dashboard apiBase={API_BASE} />
@@ -388,8 +488,8 @@ function App() {
                   }
                 >
                   <option value="PUBLIC">PUBLIC</option>
-                  <option value="INTERNAL">INTERNAL</option>
-                  <option value="CUI" disabled={clearance !== 'CUI'}>CUI</option>
+                  <option value="INTERNAL" disabled={!isClassificationAllowed(clearance, 'INTERNAL')}>INTERNAL</option>
+                  <option value="CUI" disabled={!isClassificationAllowed(clearance, 'CUI')}>CUI</option>
                 </select>
               </label>
             )}

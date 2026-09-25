@@ -27,6 +27,96 @@
   letter-spacing: .08em;
 }
 
+.demo-notice-security {
+  border-color: var(--accent-red);
+  background: var(--accent-red-deep);
+  color: var(--accent-red);
+}
+
+.demo-notice-security strong {
+  background: var(--accent-red);
+  color: #240b09;
+}
+
+.clearance-notice {
+  margin-bottom: 14px;
+  border: 1px solid var(--accent-red);
+  border-radius: 9px;
+  background: var(--accent-red-deep);
+  padding: 8px 12px;
+  color: var(--accent-red);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.clearance-gate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--accent-amber);
+  border-radius: 12px;
+  background: var(--surface-alt);
+  padding: 14px 16px;
+}
+
+.clearance-gate-copy {
+  display: flex;
+  flex: 1;
+  min-width: 220px;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.clearance-gate-copy strong {
+  color: var(--accent-amber);
+  font-size: 12px;
+}
+
+.clearance-gate-copy span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.clearance-gate input {
+  min-width: 160px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-alt-2);
+  padding: 9px 11px;
+  color: var(--text-primary);
+}
+
+.clearance-gate-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.clearance-gate-actions button[type='submit'] {
+  border: 0;
+  border-radius: 9px;
+  background: var(--accent-amber);
+  padding: 9px 14px;
+  color: #1c1508;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.clearance-gate-hint {
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.clearance-gate-hint code {
+  border-radius: 4px;
+  background: var(--surface-alt-2);
+  padding: 1px 5px;
+  color: var(--accent-amber);
+}
+
 .topbar {
   display: flex;
   align-items: center;

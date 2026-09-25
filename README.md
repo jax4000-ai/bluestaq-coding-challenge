@@ -28,11 +28,11 @@ Render's free hosting may put the application to sleep when it is unused. If the
 
 ### Two-minute interviewer walkthrough
 
-1. Open the live application. It starts as operator `operator.ada` with `CUI` clearance.
-2. Notice the seeded Public, Internal, and CUI notes.
-3. Change the clearance to `INTERNAL`. The CUI note disappears because the server no longer returns it.
-4. Change the clearance to `PUBLIC`. Only the public note remains.
-5. Return to `CUI`, create a synthetic note, edit it, archive it, and restore it.
+1. Open the live application. It starts as operator `operator.ada` with `PUBLIC` clearance, so only the public note is visible.
+2. Change the clearance dropdown to `INTERNAL` or `CUI`. A demo passphrase panel appears (see [Demo identity boundary](#demo-identity-boundary)) — the passphrase is shown right in the panel as a hint, since it is intentionally not a real secret.
+3. Unlock `CUI` and notice all three seeded notes (Public, Internal, CUI) appear.
+4. Drop back to `INTERNAL` (no passphrase needed to go down) — the CUI note disappears because the server no longer returns it, not because the browser is hiding it.
+5. Unlock `CUI` again, create a synthetic note, edit it, archive it, and restore it.
 6. Open the application in a second browser window to see changes arrive through the live event stream.
 7. Click the **Dashboard** tab to see live traffic, 2xx/4xx/5xx counts, and an error-code breakdown update in real time.
 
@@ -249,6 +249,15 @@ REST calls require:
 - `X-User-Clearance`: `PUBLIC`, `INTERNAL`, or `CUI`
 
 These headers make the authorization behavior easy to demonstrate locally. They are **not a production authentication mechanism** because a client can spoof them.
+
+### Client-side passphrase gate (UI convenience, not security)
+
+The React app starts every session at `PUBLIC` clearance. Elevating the on-screen "Clearance" selector to `INTERNAL` or `CUI` opens an inline panel that requires a short demo passphrase (shown as a visible hint in the panel and here, since hiding it would be pointless — see below):
+
+- `INTERNAL` → `internal-demo`
+- `CUI` → `cui-demo`
+
+**This is a UI convenience, not a security control.** It exists only so a stray click in the browser doesn't instantly reveal higher-classification synthetic notes; it does not gate the API itself. Anyone calling the backend directly (`curl`, Postman, the examples in this README) can still set `X-User-Clearance: CUI` with no passphrase at all — the real enforcement is, and always has been, server-side in `NoteService`/`DataClassification`, exactly as described below. The app also shows a permanent "SIMULATED ACCESS CONTROL" banner making this explicit.
 
 In production, an ALB/API gateway would validate a signed JWT issued by an approved agency identity provider (for example CAC/PIV-backed OIDC). A trusted gateway would remove inbound identity headers and inject verified claims. The service would accept traffic only from that gateway's security group.
 
