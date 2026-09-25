@@ -42,15 +42,56 @@ The demo requires no login. Its in-memory database can reset whenever the free s
 
 **In plain English:** the **Dashboard** tab is a small built-in "ops screen" — the same kind of view a site-reliability engineer would want on-call. It shows how much traffic the app is getting and how much of it is failing, updating automatically every 5 seconds, without needing to install or configure any separate monitoring tool.
 
-It shows, for this running instance:
+Open the live demo and click the **Dashboard** tab (next to **Notes**, top-right) to see it live.
 
-- **Total requests, 2xx, 4xx, and 5xx counts** as headline cards
-- **Traffic over the last 60 minutes** as a per-minute bar chart
-- **Error-code breakdown** (see the table in [Errors and logging](#errors-and-logging)) ranked by frequency
+### What's on the dashboard
 
-Backed by `GET /api/observability/metrics`, which is intentionally public and unauthenticated because it only returns aggregate counts — never note titles, content, team names, or identities. Health-check pings to `/actuator/health` are excluded so the traffic chart reflects real application usage. Counters live in server memory only (no external metrics backend, no new dependency); they reset on restart or redeploy, exactly like the demo's in-memory H2 database.
+- **Headline metric cards** — total requests, 2xx successes, 4xx client errors, and 5xx server errors since the instance started.
+- **Traffic — last 60 minutes** — a per-minute bar chart of request volume, so a burst or a drop-off is visible at a glance. Hovering a bar shows its exact timestamp and count.
+- **Error codes** — every `errorCode` returned by the API (see the table in [Errors and logging](#errors-and-logging)), ranked by how often it has occurred, with a proportional bar so the dominant failure mode stands out immediately.
+- A footer note reminding the viewer that counters are in-memory, per-instance, and contain no note content or identities.
 
-What I'd add first for a real production dashboard: export these as [Micrometer](https://micrometer.io/)/Prometheus metrics instead of a bespoke endpoint, ship them to a managed backend (e.g. CloudWatch or Grafana) so history survives restarts and spans multiple instances, and add alerting thresholds on the 5xx rate.
+### How it works
+
+- `RequestMetricsRecorder` (`backend/.../observability/RequestMetricsRecorder.java`) holds thread-safe `LongAdder` counters: one per HTTP status class (2xx/3xx/4xx/5xx), one per `errorCode`, and a rolling map of request counts keyed by minute (last 60 minutes are retained; older buckets are pruned on every write).
+- `ResponseSecurityFilter` calls `recordRequest(statusCode)` once per request, in the same `doFinally` hook that already writes the access-log line, after excluding `/actuator/*` health-check traffic so the chart reflects real usage.
+- `ApiExceptionHandler` calls `recordErrorCode(...)` every time it builds a Problem Details response, so the error-code breakdown always matches what clients actually received.
+- `GET /api/observability/metrics` (`MetricsController`) returns a JSON snapshot on demand — nothing is pushed; the frontend `Dashboard.tsx` component polls it every 5 seconds with `fetch` and re-renders.
+
+Example response shape:
+
+```json
+{
+  "startedAt": "2026-09-25T13:01:07.982Z",
+  "generatedAt": "2026-09-25T13:04:22.104Z",
+  "totalRequests": 42,
+  "twoXx": 35,
+  "threeXx": 0,
+  "fourXx": 6,
+  "fiveXx": 1,
+  "errorCodes": [
+    { "code": "NOTE_NOT_FOUND", "count": 4 },
+    { "code": "ACCESS_DENIED", "count": 2 },
+    { "code": "INTERNAL_ERROR", "count": 1 }
+  ],
+  "trafficByMinute": [
+    { "minute": "2026-09-25T12:04:00Z", "count": 0 },
+    { "minute": "2026-09-25T13:04:00Z", "count": 42 }
+  ]
+}
+```
+
+### Why it's safe to expose without a login
+
+`GET /api/observability/metrics` requires no `X-User-Id`/`X-User-Clearance` headers, unlike every note and audit endpoint. That's a deliberate choice, not an oversight: the response contains only aggregate counts (request totals, status-code classes, error codes, per-minute volume) and never note titles, note content, team names, author identities, or IP addresses. There is nothing in this payload that reveals who is using the system or what they're working on, so it carries none of the sensitivity that gates the rest of the API.
+
+### Known limitations (by design, for a demo)
+
+- **Single-instance, in-memory** — counters live in this one process's heap. They reset on restart or redeploy, and if the service ever ran multiple instances, each would report only its own traffic. This matches the rest of the demo (e.g. the in-memory H2 database) and avoids adding a metrics backend just for the challenge.
+- **No history beyond 60 minutes** — the traffic chart is a fixed rolling window; nothing is persisted for later analysis.
+- **No alerting** — the dashboard is for a human to glance at, not to page anyone.
+
+What I'd add first for a real production dashboard: export these as [Micrometer](https://micrometer.io/)/Prometheus metrics instead of a bespoke endpoint, ship them to a managed backend (e.g. CloudWatch or Grafana) so history survives restarts and spans multiple instances, and add alerting thresholds on the 5xx rate and on specific error codes.
 
 ## What this project demonstrates
 
