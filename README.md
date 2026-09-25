@@ -204,9 +204,42 @@ npm run lint
 npm run build
 ```
 
-The integration suite exercises the real HTTP API and database. It covers CRUD, team isolation, validation, duplicate titles, archive/delete, stale-edit conflicts, audit creation, and classification enforcement.
+`./mvnw test` runs two complementary backend suites against the real HTTP API and database:
 
-GitHub Actions runs both the backend integration suite and frontend lint/build on pushes to `main` and on pull requests.
+- **Integration tests** (`NoteApiIntegrationTest`) — CRUD, team isolation, validation, duplicate titles, archive/delete, stale-edit conflicts, audit creation, and classification enforcement.
+- **Behavior-driven acceptance tests** (Cucumber/Gherkin, see below) — the same rules expressed as business-readable scenarios.
+
+GitHub Actions runs both the backend suite and frontend lint/build on pushes to `main` and on pull requests.
+
+### Behavior-driven (BDD) scenarios
+
+**In plain English:** alongside the regular tests, this project also has a set of scenarios written in plain English sentences (a format called Gherkin) that describe *what the application should do*, not how the code is written. A non-programmer — a product owner, a tester, or an interviewer — can read them and understand the rules; a tool called Cucumber then runs each sentence against the real API to prove the rule actually holds.
+
+Feature files live in [`backend/src/test/resources/features`](backend/src/test/resources/features):
+
+| Feature | What it proves |
+| --- | --- |
+| `classification_access.feature` | CUI-cleared users see every note; lower-cleared users never see notes above their clearance, whether listing or fetching by ID directly |
+| `concurrency_and_validation.feature` | A stale edit is rejected with a conflict instead of silently overwriting; duplicate titles are rejected per team but allowed across teams |
+| `note_lifecycle.feature` | A note can be archived and restored; deletion is permanent |
+| `audit_trail.feature` | Every mutation (create, archive, delete) produces a matching audit record |
+
+Example scenario:
+
+```gherkin
+Scenario: An operator with INTERNAL clearance cannot see CUI notes
+  Given operator "ada" with clearance "CUI" creates a "CUI" note titled "Controlled sensor assessment"
+  When operator "grace" with clearance "INTERNAL" lists notes for team "alpha"
+  Then the response status should be 200
+  And the note list should contain 0 notes
+```
+
+Step definitions (`backend/src/test/java/com/example/notes/bdd`) turn each sentence into real HTTP calls through the same `WebTestClient` used by the integration tests — there is no mocking, so a passing scenario means the running application actually behaves that way:
+
+- `CucumberSpringConfiguration` boots the full reactive stack once and reuses it across scenarios (fast, and matches how the app really runs).
+- `ScenarioState` is a Spring bean scoped to a single scenario (`@ScenarioScope`), holding the notes and responses that scenario has seen so far, so steps like "that note" and "the original version" are unambiguous.
+- `NoteBehaviorSteps` implements every step, resets the database before each scenario, and captures each HTTP response — whether a note or a Problem Details error — so later `Then` steps can assert on either outcome.
+- `RunCucumberTest` is the JUnit 5 entry point (`@Suite` + `@IncludeEngines("cucumber")`) that Maven Surefire discovers automatically; run it in isolation with `./mvnw test -Dtest=RunCucumberTest`.
 
 ## Demo identity boundary
 
